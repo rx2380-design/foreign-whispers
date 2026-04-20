@@ -27,6 +27,7 @@ async def tts_endpoint(
     request: Request,
     config: str = Query(..., pattern=r"^c-[0-9a-f]{7}$"),
     alignment: bool = Query(False),
+    speaker_wav: str | None = Query(None),
 ):
     """Generate TTS audio for a translated transcript.
 
@@ -58,7 +59,8 @@ async def tts_endpoint(
     source_path = str(trans_dir / f"{title}.json")
 
     await _run_in_threadpool(
-        None, svc.text_file_to_speech, source_path, str(audio_dir), alignment=alignment
+        None, svc.text_file_to_speech, source_path, str(audio_dir),
+        alignment=alignment, speaker_wav=speaker_wav,
     )
 
     return {

@@ -20,6 +20,7 @@ from foreign_whispers.client import ALIGNED, BASELINE, FWClient, config_id  # no
 from foreign_whispers.diarization import assign_speakers, diarize_audio  # noqa: F401
 from foreign_whispers.evaluation import clip_evaluation_report, dubbing_scorecard  # noqa: F401
 from foreign_whispers.vad import detect_speech_activity  # noqa: F401
+from foreign_whispers.voice_resolution import resolve_speaker_wav  # noqa: F401
 
 __all__ = [
     "AlignAction",
@@ -43,4 +44,5 @@ __all__ = [
     "config_id",
     "BASELINE",
     "ALIGNED",
+    "resolve_speaker_wav",
 ]

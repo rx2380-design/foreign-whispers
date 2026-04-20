@@ -1,9 +1,11 @@
 """HTTP-agnostic service wrapping TTS engine functions."""
 
+import json
 import pathlib
 from pathlib import Path
 from typing import Any
 
+from api.src.core.config import settings
 from api.src.services.tts_engine import text_file_to_speech as tts_text_file_to_speech
 
 
@@ -17,8 +19,30 @@ class TTSService:
         self.ui_dir = ui_dir
         self.tts_engine = tts_engine
 
-    def text_file_to_speech(self, source_path: str, output_path: str, *, alignment: bool | None = None) -> None:
+    def text_file_to_speech(
+        self,
+        source_path: str,
+        output_path: str,
+        *,
+        alignment: bool | None = None,
+        speaker_wav: str | None = None,
+    ) -> None:
         """Generate time-aligned TTS audio from a translated JSON transcript."""
+        from foreign_whispers.voice_resolution import resolve_speaker_wav
+
+        # Auto-assign per-speaker voices when transcript has speaker labels
+        if speaker_wav is None and hasattr(settings, "speakers_dir"):
+            transcript = json.load(open(source_path))
+            speakers = {seg.get("speaker") for seg in transcript.get("segments", []) if seg.get("speaker")}
+            if speakers:
+                # Use resolve_speaker_wav for first detected speaker as default
+                speaker_id = next(iter(sorted(speakers)))
+                speaker_wav = resolve_speaker_wav(
+                    settings.speakers_dir,
+                    target_language="es",
+                    speaker_id=speaker_id,
+                )
+
         tts_text_file_to_speech(source_path, output_path, self.tts_engine, alignment=alignment)
 
     @staticmethod
