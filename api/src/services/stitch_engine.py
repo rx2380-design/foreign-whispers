@@ -77,7 +77,7 @@ def stitch_audio(video_path: str, audio_path: str, output_path: str):
         "-shortest",           # stop when shortest stream ends
         output_path,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, start_new_session=True)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed: {result.stderr}")
     print("Stitching done.")
