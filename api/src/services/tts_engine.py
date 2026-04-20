@@ -155,7 +155,7 @@ def _make_tts_engine():
     torch.load = _patched_load
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"[tts] Using local Coqui TTS on {device}")
-    return CoquiTTS(model_name="tts_models/es/mai/tacotron2-DDC", progress_bar=False).to(device)
+    return CoquiTTS(model_name="tts_models/es/css10/vits", progress_bar=False).to(device)
 
 
 _tts_engine = None
