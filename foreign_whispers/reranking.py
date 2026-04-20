@@ -157,10 +157,102 @@ def get_shorter_translations(
     Returns:
         Empty list (stub).  Implement to return ``TranslationCandidate`` items.
     """
+    import re
+
+    CHARS_PER_SECOND = 15.0
+    budget_chars = int(target_duration_s * CHARS_PER_SECOND)
+
+    # If baseline already fits within budget, no shorter candidates needed.
+    if len(baseline_es) <= budget_chars:
+        return []
+
+    candidates: list[TranslationCandidate] = []
+    seen: set[str] = set()
+
+    def _add(text: str, rationale: str) -> None:
+        text = re.sub(r"\s+", " ", text).strip()
+        if text and text not in seen and text != baseline_es:
+            seen.add(text)
+            candidates.append(TranslationCandidate(
+                text=text,
+                char_count=len(text),
+                brevity_rationale=rationale,
+            ))
+
+    # ── Strategy 1: Remove Spanish filler words / redundant phrases ──────────
+    FILLER_SUBS = [
+        (r"\ben este momento\b", "ahora"),
+        (r"\ben este instante\b", "ahora"),
+        (r"\bactualmente\b", "hoy"),
+        (r"\bpor supuesto(que)?\b", "claro"),
+        (r"\bde hecho\b", ""),
+        (r"\bsegún parece\b", ""),
+        (r"\bpor lo tanto\b", "así"),
+        (r"\bsin embargo\b", "pero"),
+        (r"\ba continuación\b", ""),
+        (r"\bademás\b", ""),
+        (r"\bes decir\b", "o sea"),
+        (r"\bpor otro lado\b", ""),
+        (r"\ben realidad\b", ""),
+        (r"\ben general\b", ""),
+        (r"\blo que es más\b", ""),
+        (r"\bhay que tener en cuenta que\b", ""),
+        (r"\bcabe destacar que\b", ""),
+        (r"\bse puede decir que\b", ""),
+        (r"\bcon respecto a\b", "sobre"),
+        (r"\ben lo que respecta a\b", "sobre"),
+    ]
+    text_filler = baseline_es
+    for pattern, replacement in FILLER_SUBS:
+        text_filler = re.sub(pattern, replacement, text_filler, flags=re.IGNORECASE)
+    text_filler = re.sub(r"\s+", " ", text_filler).strip()
+    if len(text_filler) < len(baseline_es):
+        _add(text_filler, "Removed filler words and redundant phrases")
+
+    # ── Strategy 2: Abbreviate common long Spanish multi-word expressions ─────
+    ABBREVS = [
+        (r"\bEstados Unidos\b", "EE.UU."),
+        (r"\bNaciones Unidas\b", "la ONU"),
+        (r"\bpor ciento\b", "%"),
+        (r"\bmillones de dólares\b", "M$"),
+        (r"\bmillones\b", "M"),
+        (r"\bel gobierno de los\b", "el gobierno"),
+        (r"\bla situación de\b", "la situación en"),
+        (r"\bel presidente de\b", "el pdte. de"),
+        (r"\bsecretary of state\b", "canciller"),   # stray EN phrase
+    ]
+    text_abbrev = baseline_es
+    for pattern, replacement in ABBREVS:
+        text_abbrev = re.sub(pattern, replacement, text_abbrev, flags=re.IGNORECASE)
+    text_abbrev = re.sub(r"\s+", " ", text_abbrev).strip()
+    if len(text_abbrev) < len(baseline_es):
+        _add(text_abbrev, "Abbreviated common long phrases")
+
+    # ── Strategy 3: Truncate to budget at a natural word / sentence boundary ──
+    if len(baseline_es) > budget_chars:
+        truncated = baseline_es[:budget_chars]
+        # Prefer sentence-level break
+        for sep in (". ", "? ", "! "):
+            idx = truncated.rfind(sep)
+            if idx > budget_chars // 2:
+                truncated = truncated[: idx + 1].strip()
+                break
+        else:
+            # Fall back to last comma or word boundary
+            for sep in (", ", " "):
+                idx = truncated.rfind(sep)
+                if idx > budget_chars // 3:
+                    truncated = truncated[:idx].strip()
+                    break
+        _add(truncated, "Truncated to fit duration budget")
+
+    # Sort shortest-first so caller can pick the closest-fitting candidate.
+    candidates.sort(key=lambda c: c.char_count)
+
     logger.info(
-        "get_shorter_translations called for %.1fs budget (%d chars baseline) — "
-        "returning empty list (student assignment stub).",
-        target_duration_s,
+        "get_shorter_translations: budget=%d chars, baseline=%d chars → %d candidates",
+        budget_chars,
         len(baseline_es),
+        len(candidates),
     )
-    return []
+    return candidates

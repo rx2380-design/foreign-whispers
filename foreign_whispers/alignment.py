@@ -298,3 +298,112 @@ def global_align(
         cumulative_drift += gap_shift
 
     return aligned
+
+
+def global_align_dp(
+    metrics:         list[SegmentMetrics],
+    silence_regions: list[dict],
+    max_stretch:     float = 1.4,
+) -> list[AlignedSegment]:
+    """Priority-based global alignment — a smarter alternative to the greedy pass.
+
+    Unlike ``global_align`` which always assigns gap-shifts immediately
+    (left-to-right), this optimizer first surveys *all* segments that want a
+    gap-shift, then allocates available silence to the most overflow-heavy
+    segments first.  Segments with smaller overflows are left to be handled
+    by mild time-stretching, preserving silence budget for segments that
+    truly need it.
+
+    Algorithm (O(n log n)):
+
+    1. Build a map of available silence after each segment (same as greedy).
+    2. Collect *gap_shift candidates*: segments where decide_action would
+       return ``GAP_SHIFT`` given their local gap.
+    3. Sort candidates by ``overflow_s`` descending (worst first) and assign
+       the gap only if it is still available (not already claimed by a
+       higher-priority earlier segment in the sorted order).
+    4. Rebuild the schedule with a left-to-right drift pass, respecting
+       the approved gap-shift assignments from step 3.
+
+    This trades the O(1) greedy look for an O(n log n) sort, which is
+    negligible for typical transcript lengths (~100–300 segments).
+
+    Args:
+        metrics: Per-segment timing metrics from ``compute_segment_metrics``.
+        silence_regions: VAD output — ``[{start_s, end_s, label}]``.
+            Pass ``[]`` if VAD is unavailable (gap_shift disabled for all).
+        max_stretch: Upper bound for ``MILD_STRETCH`` speed factor.
+
+    Returns:
+        One ``AlignedSegment`` per input metric, in order.
+    """
+    def _silence_after(end_s: float) -> float:
+        for r in silence_regions:
+            if r.get("label") == "silence" and r["start_s"] >= end_s - 0.1:
+                return r["end_s"] - r["start_s"]
+        return 0.0
+
+    # --- Pass 1: identify which segments are eligible for a gap-shift --------
+    gap_available = [_silence_after(m.source_end) for m in metrics]
+
+    # Candidates: (index, overflow_s) for segments that *could* gap-shift.
+    candidates = [
+        (i, m.overflow_s)
+        for i, m in enumerate(metrics)
+        if m.predicted_stretch > 1.4
+        and m.predicted_stretch <= 1.8
+        and gap_available[i] >= m.overflow_s
+    ]
+    # Sort by overflow descending — allocate to most-needy first.
+    candidates.sort(key=lambda x: -x[1])
+
+    approved_shifts: set[int] = set()
+    # Track which silence regions have been claimed (by their start boundary).
+    claimed_silences: set[float] = set()
+    for idx, _overflow in candidates:
+        # Find the silence region after this segment
+        seg_end = metrics[idx].source_end
+        for r in silence_regions:
+            if (
+                r.get("label") == "silence"
+                and r["start_s"] >= seg_end - 0.1
+                and r["start_s"] not in claimed_silences
+            ):
+                approved_shifts.add(idx)
+                claimed_silences.add(r["start_s"])
+                break
+
+    # --- Pass 2: schedule with approved shifts --------------------------------
+    aligned: list[AlignedSegment] = []
+    cumulative_drift = 0.0
+
+    for i, m in enumerate(metrics):
+        gap_shift = 0.0
+        stretch   = 1.0
+
+        if i in approved_shifts:
+            action    = AlignAction.GAP_SHIFT
+            gap_shift = m.overflow_s
+        else:
+            action = decide_action(m, available_gap_s=0.0)
+            if action == AlignAction.MILD_STRETCH:
+                stretch = min(m.predicted_stretch, max_stretch)
+
+        sched_start = m.source_start + cumulative_drift
+        sched_end   = sched_start + m.source_duration_s + gap_shift
+
+        aligned.append(AlignedSegment(
+            index           = m.index,
+            original_start  = m.source_start,
+            original_end    = m.source_end,
+            scheduled_start = sched_start,
+            scheduled_end   = sched_end,
+            text            = m.translated_text,
+            action          = action,
+            gap_shift_s     = gap_shift,
+            stretch_factor  = stretch,
+        ))
+
+        cumulative_drift += gap_shift
+
+    return aligned
