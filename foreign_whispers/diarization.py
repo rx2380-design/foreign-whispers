@@ -27,12 +27,11 @@ def diarize_audio(audio_path: str, hf_token: str | None = None) -> list[dict]:
     try:
         import torchaudio
         if not hasattr(torchaudio, "AudioMetaData"):
-            try:
-                from torchaudio.backend.common import AudioMetaData
-                torchaudio.AudioMetaData = AudioMetaData
-            except ImportError:
-                import torchaudio.info as _ti
-                torchaudio.AudioMetaData = type(_ti.info(""))
+            from collections import namedtuple
+            torchaudio.AudioMetaData = namedtuple(
+                "AudioMetaData",
+                ["sample_rate", "num_frames", "num_channels", "bits_per_sample", "encoding"],
+            )
         if not hasattr(torchaudio, "set_audio_backend"):
             torchaudio.set_audio_backend = lambda *a, **kw: None
         from pyannote.audio import Pipeline
