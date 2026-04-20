@@ -24,6 +24,17 @@ ps:                   ## Show running containers
 
 rebuild: build up     ## Rebuild API and restart
 
+# ── Cleanup ───────────────────────────────────────────────────────────────
+.PHONY: clean clean-data clean-all
+
+clean:                ## Remove unused Docker images/containers/networks/build cache
+	docker system prune -a -f
+
+clean-data:           ## Remove pipeline_data intermediate files (keep directory structure)
+	find pipeline_data -type f \( -name "*.mp4" -o -name "*.wav" -o -name "*.vtt" -o -name "*.json" \) -delete
+
+clean-all: clean clean-data  ## Full cleanup: Docker + pipeline_data artifacts
+
 # ── Notebook execution ────────────────────────────────────────────────────
 .PHONY: notebook-deps notebook notebook-skip-heavy
 
