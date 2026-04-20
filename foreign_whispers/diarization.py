@@ -25,6 +25,13 @@ def diarize_audio(audio_path: str, hf_token: str | None = None) -> list[dict]:
         return []
 
     try:
+        import torch
+        _orig_load = torch.load
+        def _load_compat(*args, **kwargs):
+            kwargs.setdefault("weights_only", False)
+            return _orig_load(*args, **kwargs)
+        torch.load = _load_compat
+
         import torchaudio
         if not hasattr(torchaudio, "AudioMetaData"):
             from collections import namedtuple
