@@ -43,6 +43,17 @@ def diarize_audio(audio_path: str, hf_token: str | None = None) -> list[dict]:
             torchaudio.set_audio_backend = lambda *a, **kw: None
         if not hasattr(torchaudio, "list_audio_backends"):
             torchaudio.list_audio_backends = lambda: ["soundfile"]
+        # torchaudio 2.10 uses torchcodec internally; patch .load to use soundfile directly
+        try:
+            import soundfile as sf
+            import torch as _torch
+            _orig_ta_load = torchaudio.load
+            def _ta_load_compat(path, *args, **kwargs):
+                data, sr = sf.read(str(path), dtype="float32", always_2d=True)
+                return _torch.from_numpy(data.T), sr
+            torchaudio.load = _ta_load_compat
+        except ImportError:
+            pass
         from pyannote.audio import Pipeline
     except (ImportError, TypeError):
         logger.warning("pyannote.audio not installed — returning empty diarization.")
