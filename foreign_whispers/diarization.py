@@ -43,15 +43,18 @@ def diarize_audio(audio_path: str, hf_token: str | None = None) -> list[dict]:
             torchaudio.set_audio_backend = lambda *a, **kw: None
         if not hasattr(torchaudio, "list_audio_backends"):
             torchaudio.list_audio_backends = lambda: ["soundfile"]
-        # torchaudio 2.10 uses torchcodec internally; patch .load to use soundfile directly
+        # torchaudio 2.10 uses torchcodec internally; patch load/info to use soundfile directly
         try:
             import soundfile as sf
             import torch as _torch
-            _orig_ta_load = torchaudio.load
             def _ta_load_compat(path, *args, **kwargs):
                 data, sr = sf.read(str(path), dtype="float32", always_2d=True)
                 return _torch.from_numpy(data.T), sr
             torchaudio.load = _ta_load_compat
+            def _ta_info_compat(path, *args, **kwargs):
+                i = sf.info(str(path))
+                return torchaudio.AudioMetaData(i.samplerate, i.frames, i.channels, 16, "PCM_S")
+            torchaudio.info = _ta_info_compat
         except ImportError:
             pass
         from pyannote.audio import Pipeline
