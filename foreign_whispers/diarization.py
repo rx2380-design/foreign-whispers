@@ -63,10 +63,12 @@ def diarize_audio(audio_path: str, hf_token: str | None = None) -> list[dict]:
         return []
 
     try:
-        pipeline    = Pipeline.from_pretrained(
+        import torch as _torch
+        pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1",
             use_auth_token=hf_token,
         )
+        pipeline.to(_torch.device("cpu"))
         diarization = pipeline(audio_path)
         return [
             {"start_s": turn.start, "end_s": turn.end, "speaker": speaker}
