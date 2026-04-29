@@ -7,7 +7,7 @@ Usage::
 
     from foreign_whispers.client import FWClient
 
-    fw = FWClient()                        # default: http://localhost:8080
+    fw = FWClient()                        # default: http://localhost:8082
     fw.download("https://youtube.com/watch?v=...")
     fw.transcribe("GYQ5yGV_-Oc")
     fw.translate("GYQ5yGV_-Oc")
@@ -49,7 +49,7 @@ ALIGNED = config_id("aligned")
 class FWClient:
     """Synchronous client for the Foreign Whispers API."""
 
-    def __init__(self, base_url: str = "http://localhost:8080") -> None:
+    def __init__(self, base_url: str = "http://localhost:8082") -> None:
         self.base_url = base_url.rstrip("/")
         self._session = requests.Session()
 
