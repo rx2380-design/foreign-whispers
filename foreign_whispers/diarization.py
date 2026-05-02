@@ -48,7 +48,12 @@ def diarize_audio(audio_path: str, hf_token: str | None = None) -> list[dict]:
             import soundfile as sf
             import torch as _torch
             def _ta_load_compat(path, *args, **kwargs):
-                data, sr = sf.read(str(path), dtype="float32", always_2d=True)
+                frame_offset = kwargs.get("frame_offset", 0)
+                num_frames = kwargs.get("num_frames", -1)
+                if num_frames < 0:
+                    data, sr = sf.read(str(path), dtype="float32", always_2d=True)
+                else:
+                    data, sr = sf.read(str(path), dtype="float32", always_2d=True, start=frame_offset, frames=num_frames)
                 return _torch.from_numpy(data.T), sr
             torchaudio.load = _ta_load_compat
             def _ta_info_compat(path, *args, **kwargs):

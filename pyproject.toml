@@ -26,6 +26,9 @@ dependencies = [
     "setuptools<81",
     "pyyaml>=6.0.3",
     "logfire",
+    "ipykernel>=7.2.0",
+    "pyannote-audio==3.3.2",
+    "lightning-fabric>=2.6.1",
 ]
 
 [dependency-groups]
